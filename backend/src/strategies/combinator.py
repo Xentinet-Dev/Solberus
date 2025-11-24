@@ -21,6 +21,8 @@ from .momentum_strategy import MomentumStrategy, MomentumConfig
 from .reversal_strategy import ReversalStrategy, ReversalConfig
 from .whale_copy_strategy import WhaleCopyStrategy, WhaleCopyConfig
 from .social_signals_strategy import SocialSignalsStrategy, SocialSignalsConfig
+from .volume_boost_strategy import VolumeBoostStrategy, VolumeBoostConfig
+from .market_making_strategy import MarketMakingStrategy, MarketMakingConfig
 
 from interfaces.core import TokenInfo
 from trading.base import TradeResult
@@ -141,6 +143,24 @@ class StrategyCombinator:
             min_sentiment_score=0.70,
         )
         self.strategy_instances[StrategyType.SOCIAL_SIGNALS] = SocialSignalsStrategy(social_config)
+
+        # Initialize Volume Boost Strategy
+        volume_boost_config = VolumeBoostConfig(
+            enabled=True,
+            capital_allocation=0.20,
+            min_volume_1h=50.0,
+            volume_spike_threshold=3.0,
+        )
+        self.strategy_instances[StrategyType.VOLUME_BOOST] = VolumeBoostStrategy(volume_boost_config)
+
+        # Initialize Market Making Strategy
+        market_making_config = MarketMakingConfig(
+            enabled=True,
+            capital_allocation=0.15,
+            spread_percentage=0.02,
+            target_sol_ratio=0.5,
+        )
+        self.strategy_instances[StrategyType.MARKET_MAKING] = MarketMakingStrategy(market_making_config)
 
         logger.info(f"Initialized {len(self.strategy_instances)} strategy instances")
 
