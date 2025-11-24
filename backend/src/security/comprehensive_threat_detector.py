@@ -594,6 +594,88 @@ class ComprehensiveThreatDetector:
 
         return predictions
 
+    async def detect_all_threats(self, token_info: TokenInfo) -> Dict[str, Optional[tuple]]:
+        """
+        Run all threat detection methods and return results.
+
+        This is the main entry point for threat scanning, called by the API.
+
+        Args:
+            token_info: Token information to scan
+
+        Returns:
+            Dictionary mapping threat names to detection results:
+            {
+                "transfer_hook_exploit": (severity, confidence, details) or None,
+                "honeypot": (severity, confidence, details) or None,
+                ...
+            }
+        """
+        logger.info(f"Running all threat detections for token: {token_info.mint_address}")
+
+        # Import ThreatImplementations
+        from security.threat_implementations import ThreatImplementations
+
+        # Initialize threat detector
+        impl = ThreatImplementations(self.client)
+
+        # Run all detection methods
+        results = {}
+
+        try:
+            # Token-2022 threats (3 methods)
+            results["transfer_hook_exploit"] = await impl.detect_transfer_hook_exploit(token_info)
+            results["permanent_delegate"] = await impl.detect_permanent_delegate(token_info)
+            results["confidential_transfer_abuse"] = await impl.detect_confidential_transfer_abuse(token_info)
+            results["token_metadata_manipulation"] = await impl.detect_token_metadata_manipulation(token_info)
+            results["freeze_authority_risk"] = await impl.detect_freeze_authority_risk(token_info)
+            results["mint_authority_risk"] = await impl.detect_mint_authority_risk(token_info)
+
+            # Rug pull threats (4 methods)
+            results["honeypot"] = await impl.detect_honeypot(token_info)
+            results["rug_pull_imminent"] = await impl.detect_rug_pull_imminent(token_info)
+            results["liquidity_removal"] = await impl.detect_liquidity_removal(token_info)
+            results["creator_exit"] = await impl.detect_creator_exit(token_info)
+
+            # Volume & pattern threats (2 methods)
+            results["wash_trading"] = await impl.detect_wash_trading(token_info)
+            results["pump_and_dump"] = await impl.detect_pump_and_dump(token_info)
+
+            # Oracle threats (2 methods)
+            results["oracle_manipulation"] = await impl.detect_oracle_manipulation(token_info)
+            results["oracle_staleness"] = await impl.detect_oracle_staleness(token_info)
+
+            # Flash loan threats (1 method)
+            results["flash_loan_vulnerability"] = await impl.detect_flash_loan_vulnerability(token_info)
+
+            # MEV threats (2 methods)
+            results["sandwich_attack_risk"] = await impl.detect_sandwich_attack_risk(token_info)
+            results["front_running_risk"] = await impl.detect_front_running_risk(token_info)
+
+            # Bonding curve threats (2 methods)
+            results["bonding_curve_manipulation"] = await impl.detect_bonding_curve_manipulation(token_info)
+            results["curve_exhaustion"] = await impl.detect_curve_exhaustion(token_info)
+
+            # Governance threats (2 methods)
+            results["governance_attack_risk"] = await impl.detect_governance_attack_risk(token_info)
+            results["proposal_manipulation"] = await impl.detect_proposal_manipulation(token_info)
+
+            # Smart contract vulnerabilities (3 methods)
+            results["reentrancy_risk"] = await impl.detect_reentrancy_risk(token_info)
+            results["integer_overflow_risk"] = await impl.detect_integer_overflow_risk(token_info)
+            results["access_control_issues"] = await impl.detect_access_control_issues(token_info)
+
+            # Social engineering (2 methods)
+            results["phishing_risk"] = await impl.detect_phishing_risk(token_info)
+            results["wallet_drainer_risk"] = await impl.detect_wallet_drainer_risk(token_info)
+
+            logger.info(f"Completed threat detection: {sum(1 for v in results.values() if v is not None)} threats found")
+
+        except Exception as e:
+            logger.exception(f"Error in detect_all_threats: {e}")
+
+        return results
+
     def get_scan_summary(self) -> Dict[str, Any]:
         """Get summary of all scans.
 

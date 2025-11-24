@@ -12,23 +12,23 @@ import asyncio
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional
+import time
+
+# Import new strategy implementations
+from .base_strategy import BaseStrategy, StrategyType
+from .snipe_strategy import SnipeStrategy, SnipeConfig
+from .momentum_strategy import MomentumStrategy, MomentumConfig
+from .reversal_strategy import ReversalStrategy, ReversalConfig
+from .whale_copy_strategy import WhaleCopyStrategy, WhaleCopyConfig
+from .social_signals_strategy import SocialSignalsStrategy, SocialSignalsConfig
+from .volume_boost_strategy import VolumeBoostStrategy, VolumeBoostConfig
+from .market_making_strategy import MarketMakingStrategy, MarketMakingConfig
 
 from interfaces.core import TokenInfo
 from trading.base import TradeResult
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
-
-
-class StrategyType(Enum):
-    """Types of trading strategies."""
-
-    SNIPE = "snipe"  # Early entry on new tokens
-    VOLUME_BOOST = "volume_boost"  # Add volume to boost token
-    MARKET_MAKING = "market_making"  # Provide liquidity
-    MOMENTUM = "momentum"  # Follow momentum
-    REVERSAL = "reversal"  # Counter-trend
-    WHALE_COPY = "whale_copy"  # Copy whale trades
 
 
 @dataclass
@@ -80,6 +80,10 @@ class StrategyCombinator:
         self.total_capital = total_capital
         self.performance_tracking: Dict[str, Dict[str, Any]] = {}
 
+        # Initialize strategy instances
+        self.strategy_instances: Dict[StrategyType, BaseStrategy] = {}
+        self._initialize_strategies()
+
         # Validate capital allocation
         total_allocation = sum(s.capital_allocation for s in strategies if s.enabled)
         if total_allocation > 1.0:
@@ -91,6 +95,74 @@ class StrategyCombinator:
             f"Initialized Strategy Combinator with {len(strategies)} strategies, "
             f"{total_capital} SOL capital"
         )
+
+    def _initialize_strategies(self):
+        """Initialize all strategy instances"""
+        # Initialize Snipe Strategy
+        snipe_config = SnipeConfig(
+            enabled=True,
+            capital_allocation=0.25,
+            min_liquidity=5.0,
+            max_slippage=0.20,
+            max_token_age=300,
+        )
+        self.strategy_instances[StrategyType.SNIPE] = SnipeStrategy(snipe_config)
+
+        # Initialize Momentum Strategy
+        momentum_config = MomentumConfig(
+            enabled=True,
+            capital_allocation=0.20,
+            rsi_buy_threshold=60.0,
+            rsi_sell_threshold=40.0,
+        )
+        self.strategy_instances[StrategyType.MOMENTUM] = MomentumStrategy(momentum_config)
+
+        # Initialize Reversal Strategy
+        reversal_config = ReversalConfig(
+            enabled=True,
+            capital_allocation=0.20,
+            dip_threshold=0.15,
+            peak_threshold=0.30,
+        )
+        self.strategy_instances[StrategyType.REVERSAL] = ReversalStrategy(reversal_config)
+
+        # Initialize Whale Copy Strategy
+        whale_config = WhaleCopyConfig(
+            enabled=True,
+            capital_allocation=0.20,
+            min_whale_success_rate=0.70,
+            copy_position_ratio=0.10,
+        )
+        self.strategy_instances[StrategyType.WHALE_COPY] = WhaleCopyStrategy(whale_config)
+
+        # Initialize Social Signals Strategy
+        social_config = SocialSignalsConfig(
+            enabled=True,
+            capital_allocation=0.15,
+            min_virality_score=80.0,
+            min_sentiment_score=0.70,
+        )
+        self.strategy_instances[StrategyType.SOCIAL_SIGNALS] = SocialSignalsStrategy(social_config)
+
+        # Initialize Volume Boost Strategy
+        volume_boost_config = VolumeBoostConfig(
+            enabled=True,
+            capital_allocation=0.20,
+            min_volume_1h=50.0,
+            volume_spike_threshold=3.0,
+        )
+        self.strategy_instances[StrategyType.VOLUME_BOOST] = VolumeBoostStrategy(volume_boost_config)
+
+        # Initialize Market Making Strategy
+        market_making_config = MarketMakingConfig(
+            enabled=True,
+            capital_allocation=0.15,
+            spread_percentage=0.02,
+            target_sol_ratio=0.5,
+        )
+        self.strategy_instances[StrategyType.MARKET_MAKING] = MarketMakingStrategy(market_making_config)
+
+        logger.info(f"Initialized {len(self.strategy_instances)} strategy instances")
 
     async def execute_combined_strategy(
         self, token_info: TokenInfo
@@ -171,20 +243,74 @@ class StrategyCombinator:
             Trade result if executed, None otherwise
         """
         try:
+            strategy_type = strategy_config.strategy_type
             logger.debug(
-                f"Executing {strategy_config.strategy_type.value} strategy "
+                f"Executing {strategy_type.value} strategy "
                 f"with {capital:.6f} SOL..."
             )
 
-            # In production, this would:
-            # 1. Check strategy confidence
-            # 2. Execute strategy-specific logic
-            # 3. Return trade result
+            # Get strategy instance
+            strategy = self.strategy_instances.get(strategy_type)
+            if not strategy or not strategy.enabled:
+                logger.debug(f"Strategy {strategy_type.value} not available or disabled")
+                return None
 
-            # Placeholder - would execute actual strategy
-            # This would integrate with the actual trading system
+            # Prepare market data
+            market_data = {
+                "token_address": str(token_info.address),
+                "price": getattr(token_info, 'price', 0.0),
+                "liquidity_sol": getattr(token_info, 'liquidity', 0.0),
+                "volume_1h": getattr(token_info, 'volume_24h', 0.0),  # Use 24h as proxy
+                "volume_24h": getattr(token_info, 'volume_24h', 0.0),
+                "market_cap_usd": getattr(token_info, 'market_cap', 0.0),
+                "holder_count": getattr(token_info, 'holder_count', 0),
+                "age_seconds": int(time.time() - getattr(token_info, 'created_at', time.time())),
+                "security_score": getattr(token_info, 'security_score', 50),
+                "available_capital": capital,
+                "current_positions": [],  # Would come from position manager
+                # Additional fields that might be present
+                "slippage": getattr(token_info, 'slippage', 0.1),
+                "creator": getattr(token_info, 'creator', ""),
+                "liquidity_locked": getattr(token_info, 'liquidity_locked', False),
+                "has_mint_authority": getattr(token_info, 'has_mint_authority', False),
+                "has_freeze_authority": getattr(token_info, 'has_freeze_authority', False),
+            }
 
-            return None  # Placeholder
+            # Add strategy-specific data
+            if strategy_type == StrategyType.WHALE_COPY:
+                # Whale trade would come from whale tracker
+                market_data["whale_trade"] = None  # Placeholder
+            elif strategy_type == StrategyType.SOCIAL_SIGNALS:
+                # Social signals would come from social scanner
+                market_data["social_signals"] = None  # Placeholder
+
+            # Analyze with strategy
+            signal = await strategy.analyze(market_data)
+
+            # Check if strategy wants to act
+            if signal.action == "buy" and signal.confidence >= strategy_config.min_confidence:
+                logger.info(
+                    f"{strategy_type.value} strategy signaling BUY: "
+                    f"confidence={signal.confidence:.0%}, "
+                    f"size={signal.position_size:.4f} SOL"
+                )
+
+                # Create trade result (in production, would actually execute trade)
+                trade_result = TradeResult(
+                    success=True,
+                    amount=signal.position_size,
+                    price=market_data.get("price", 0.0),
+                    timestamp=time.time(),
+                )
+
+                return trade_result
+
+            else:
+                logger.debug(
+                    f"{strategy_type.value} strategy decision: {signal.action} "
+                    f"(confidence={signal.confidence:.0%}, reason={signal.reason})"
+                )
+                return None
 
         except Exception as e:
             logger.exception(f"Error executing strategy {strategy_config.strategy_type.value}: {e}")
