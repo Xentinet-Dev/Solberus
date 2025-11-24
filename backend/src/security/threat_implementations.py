@@ -651,6 +651,527 @@ class ThreatDetectionMethods:
             return None
 
     # ========================================================================
+    # TOKEN METADATA & MANIPULATION THREATS
+    # ========================================================================
+
+    async def detect_token_metadata_manipulation(self, token_info: TokenInfo) -> Optional[Tuple[str, float, Dict]]:
+        """Detect suspicious token metadata manipulation."""
+        try:
+            # Check for metadata manipulation indicators
+            suspicion_score = 0.0
+            indicators = []
+
+            # Indicator 1: Recently changed metadata
+            # metadata_history = await self._get_metadata_history(token_info.mint_address)
+            # if metadata_history and len(metadata_history) > 1:
+            #     suspicion_score += 0.20
+            #     indicators.append("Recent metadata changes")
+
+            # Indicator 2: Misleading token name (impersonation)
+            # common_tokens = ["USDC", "SOL", "BONK", "WIF", "POPCAT"]
+            # if any(token in token_info.symbol for token in common_tokens):
+            #     suspicion_score += 0.30
+            #     indicators.append("Possible impersonation")
+
+            # Indicator 3: Suspicious URI or missing metadata
+            # metadata = await self._fetch_token_metadata(token_info.mint_address)
+            # if not metadata or not metadata.get("uri"):
+            #     suspicion_score += 0.15
+            #     indicators.append("Missing or suspicious metadata")
+
+            # Placeholder: Add some basic detection
+            suspicion_score = 0.25  # Placeholder
+
+            if suspicion_score >= 0.60:
+                return (
+                    "medium",
+                    suspicion_score,
+                    {
+                        "suspicion_score": f"{suspicion_score:.0%}",
+                        "indicators": indicators,
+                        "reason": "Token metadata manipulation detected"
+                    }
+                )
+
+            return None
+
+        except Exception as e:
+            logger.exception(f"Error detecting metadata manipulation: {e}")
+            return None
+
+    async def detect_freeze_authority_risk(self, token_info: TokenInfo) -> Optional[Tuple[str, float, Dict]]:
+        """Detect if freeze authority exists and is risky."""
+        try:
+            # Check for freeze authority
+            # account_data = await self.client.get_account_info(token_info.mint_address)
+            # freeze_authority = self._extract_freeze_authority(account_data)
+
+            # if freeze_authority:
+            #     # Check if authority is centralized (single wallet)
+            #     is_centralized = not await self._is_multisig(freeze_authority)
+            #     if is_centralized:
+            #         return (
+            #             "high",
+            #             0.85,
+            #             {
+            #                 "freeze_authority": str(freeze_authority),
+            #                 "reason": "Centralized freeze authority - tokens can be frozen",
+            #                 "risk": "Your tokens can be frozen at any time"
+            #             }
+            #         )
+
+            # Placeholder detection
+            return None
+
+        except Exception as e:
+            logger.exception(f"Error detecting freeze authority risk: {e}")
+            return None
+
+    async def detect_mint_authority_risk(self, token_info: TokenInfo) -> Optional[Tuple[str, float, Dict]]:
+        """Detect if mint authority exists and poses dilution risk."""
+        try:
+            # Check for mint authority
+            # account_data = await self.client.get_account_info(token_info.mint_address)
+            # mint_authority = self._extract_mint_authority(account_data)
+
+            # if mint_authority:
+            #     # Check for unlimited minting capability
+            #     return (
+            #         "high",
+            #         0.80,
+            #         {
+            #             "mint_authority": str(mint_authority),
+            #             "reason": "Mint authority exists - supply can be inflated",
+            #             "risk": "Token supply can be increased, diluting your position"
+            #         }
+            #     )
+
+            # Placeholder
+            return None
+
+        except Exception as e:
+            logger.exception(f"Error detecting mint authority risk: {e}")
+            return None
+
+    # ========================================================================
+    # ORACLE THREATS
+    # ========================================================================
+
+    async def detect_oracle_manipulation(self, token_info: TokenInfo) -> Optional[Tuple[str, float, Dict]]:
+        """Detect oracle price manipulation."""
+        try:
+            # Get oracle prices from multiple sources
+            # oracle_prices = await self._fetch_oracle_prices(token_info.mint_address)
+            # dex_price = await self._fetch_dex_price(token_info.pool_address)
+
+            # Check for large deviation
+            # if oracle_prices and dex_price:
+            #     max_deviation = max(abs(p - dex_price) / dex_price for p in oracle_prices)
+            #     if max_deviation > 0.10:  # 10% deviation
+            #         return (
+            #             "high",
+            #             max_deviation,
+            #             {
+            #                 "oracle_prices": oracle_prices,
+            #                 "dex_price": dex_price,
+            #                 "deviation": f"{max_deviation:.1%}",
+            #                 "reason": "Oracle price manipulation detected"
+            #             }
+            #         )
+
+            return None
+
+        except Exception as e:
+            logger.exception(f"Error detecting oracle manipulation: {e}")
+            return None
+
+    async def detect_oracle_staleness(self, token_info: TokenInfo) -> Optional[Tuple[str, float, Dict]]:
+        """Detect stale oracle data."""
+        try:
+            # Check oracle last update time
+            # oracle_data = await self._fetch_oracle_data(token_info.mint_address)
+            # if oracle_data:
+            #     last_update = oracle_data.get("last_update_slot")
+            #     current_slot = await self.client.get_slot()
+            #     slots_since_update = current_slot - last_update
+            #
+            #     # If oracle hasn't updated in 100 slots (~1 minute)
+            #     if slots_since_update > 100:
+            #         staleness = min(1.0, slots_since_update / 1000)
+            #         return (
+            #             "medium",
+            #             staleness,
+            #             {
+            #                 "slots_stale": slots_since_update,
+            #                 "reason": "Oracle data is stale",
+            #                 "risk": "Price feeds may be outdated"
+            #             }
+            #         )
+
+            return None
+
+        except Exception as e:
+            logger.exception(f"Error detecting oracle staleness: {e}")
+            return None
+
+    # ========================================================================
+    # FLASH LOAN THREATS
+    # ========================================================================
+
+    async def detect_flash_loan_vulnerability(self, token_info: TokenInfo) -> Optional[Tuple[str, float, Dict]]:
+        """Detect vulnerability to flash loan attacks."""
+        try:
+            # Check if protocol relies on spot prices
+            # Check if protocol has flash loan protection
+            # vulnerability_score = 0.0
+
+            # # Check 1: Uses spot price without TWAP
+            # uses_spot_price = await self._check_uses_spot_price(token_info.pool_address)
+            # if uses_spot_price:
+            #     vulnerability_score += 0.40
+
+            # # Check 2: No flash loan protection
+            # has_protection = await self._check_flash_loan_protection(token_info.mint_address)
+            # if not has_protection:
+            #     vulnerability_score += 0.35
+
+            # # Check 3: Low liquidity (easier to manipulate)
+            # if token_info.liquidity_sol < 10.0:
+            #     vulnerability_score += 0.25
+
+            # if vulnerability_score >= 0.60:
+            #     return (
+            #         "high",
+            #         vulnerability_score,
+            #         {
+            #             "vulnerability_score": f"{vulnerability_score:.0%}",
+            #             "reason": "Vulnerable to flash loan attacks",
+            #             "risk": "Price can be manipulated within a single transaction"
+            #         }
+            #     )
+
+            return None
+
+        except Exception as e:
+            logger.exception(f"Error detecting flash loan vulnerability: {e}")
+            return None
+
+    # ========================================================================
+    # MEV THREATS
+    # ========================================================================
+
+    async def detect_sandwich_attack_risk(self, token_info: TokenInfo) -> Optional[Tuple[str, float, Dict]]:
+        """Detect if token is susceptible to sandwich attacks."""
+        try:
+            # Check sandwich attack indicators
+            # risk_score = 0.0
+
+            # # High slippage = easier to sandwich
+            # if token_info.slippage > 0.05:  # >5% slippage
+            #     risk_score += 0.35
+
+            # # Low liquidity = easier to manipulate
+            # if token_info.liquidity_sol < 20.0:
+            #     risk_score += 0.30
+
+            # # Check recent sandwich attacks
+            # recent_sandwiches = await self._detect_recent_sandwich_attacks(token_info.mint_address)
+            # if recent_sandwiches:
+            #     risk_score += 0.35
+
+            # if risk_score >= 0.60:
+            #     return (
+            #         "medium",
+            #         risk_score,
+            #         {
+            #             "risk_score": f"{risk_score:.0%}",
+            #             "reason": "High risk of sandwich attacks",
+            #             "risk": "MEV bots may front-run your trades"
+            #         }
+            #     )
+
+            return None
+
+        except Exception as e:
+            logger.exception(f"Error detecting sandwich risk: {e}")
+            return None
+
+    async def detect_front_running_risk(self, token_info: TokenInfo) -> Optional[Tuple[str, float, Dict]]:
+        """Detect front-running risk."""
+        try:
+            # Check for front-running patterns
+            # recent_txs = await self._get_recent_transactions(token_info.mint_address, limit=100)
+            # front_run_count = 0
+
+            # for i in range(1, len(recent_txs)):
+            #     if self._is_front_run(recent_txs[i-1], recent_txs[i]):
+            #         front_run_count += 1
+
+            # if front_run_count > 10:  # >10% of transactions are front-run
+            #     risk = front_run_count / len(recent_txs)
+            #     return (
+            #         "medium",
+            #         risk,
+            #         {
+            #             "front_runs_detected": front_run_count,
+            #             "total_txs": len(recent_txs),
+            #             "reason": "Active front-running detected",
+            #             "risk": "Your transactions may be front-run by MEV bots"
+            #         }
+            #     )
+
+            return None
+
+        except Exception as e:
+            logger.exception(f"Error detecting front-running risk: {e}")
+            return None
+
+    # ========================================================================
+    # BONDING CURVE THREATS
+    # ========================================================================
+
+    async def detect_bonding_curve_manipulation(self, token_info: TokenInfo) -> Optional[Tuple[str, float, Dict]]:
+        """Detect bonding curve price manipulation."""
+        try:
+            # Check if bonding curve price deviates from expected
+            # if token_info.platform in ["pump_fun", "lets_bonk"]:
+            #     expected_price = await self._calculate_expected_curve_price(token_info)
+            #     actual_price = token_info.price
+            #
+            #     if expected_price:
+            #         deviation = abs(actual_price - expected_price) / expected_price
+            #         if deviation > 0.15:  # 15% deviation
+            #             return (
+            #                 "high",
+            #                 deviation,
+            #                 {
+            #                     "expected_price": expected_price,
+            #                     "actual_price": actual_price,
+            #                     "deviation": f"{deviation:.1%}",
+            #                     "reason": "Bonding curve manipulation detected"
+            #                 }
+            #             )
+
+            return None
+
+        except Exception as e:
+            logger.exception(f"Error detecting curve manipulation: {e}")
+            return None
+
+    async def detect_curve_exhaustion(self, token_info: TokenInfo) -> Optional[Tuple[str, float, Dict]]:
+        """Detect if bonding curve is near exhaustion."""
+        try:
+            # Check if curve is near max capacity
+            # if token_info.platform in ["pump_fun", "lets_bonk"]:
+            #     curve_progress = await self._get_curve_progress(token_info.pool_address)
+            #     if curve_progress and curve_progress > 0.90:  # >90% complete
+            #         return (
+            #             "medium",
+            #             curve_progress,
+            #             {
+            #                 "progress": f"{curve_progress:.1%}",
+            #                 "reason": "Bonding curve near exhaustion",
+            #                 "info": "Token approaching Raydium migration"
+            #             }
+            #         )
+
+            return None
+
+        except Exception as e:
+            logger.exception(f"Error detecting curve exhaustion: {e}")
+            return None
+
+    # ========================================================================
+    # GOVERNANCE THREATS
+    # ========================================================================
+
+    async def detect_governance_attack_risk(self, token_info: TokenInfo) -> Optional[Tuple[str, float, Dict]]:
+        """Detect governance attack vulnerabilities."""
+        try:
+            # Check governance concentration
+            # governance_data = await self._fetch_governance_data(token_info.mint_address)
+            # if governance_data:
+            #     top_voter_power = governance_data.get("top_10_voting_power", 0)
+            #     if top_voter_power > 0.51:  # >51% concentration
+            #         return (
+            #             "high",
+            #             top_voter_power,
+            #             {
+            #                 "top_voter_power": f"{top_voter_power:.1%}",
+            #                 "reason": "Governance centralization risk",
+            #                 "risk": "Small group can control protocol decisions"
+            #             }
+            #         )
+
+            return None
+
+        except Exception as e:
+            logger.exception(f"Error detecting governance risk: {e}")
+            return None
+
+    async def detect_proposal_manipulation(self, token_info: TokenInfo) -> Optional[Tuple[str, float, Dict]]:
+        """Detect suspicious governance proposals."""
+        try:
+            # Check for malicious proposals
+            # active_proposals = await self._fetch_active_proposals(token_info.mint_address)
+            # for proposal in active_proposals:
+            #     # Check for suspicious changes
+            #     if self._is_malicious_proposal(proposal):
+            #         return (
+            #             "critical",
+            #             0.90,
+            #             {
+            #                 "proposal_id": proposal.get("id"),
+            #                 "reason": "Malicious governance proposal detected",
+            #                 "risk": "Proposal may drain funds or change parameters"
+            #             }
+            #         )
+
+            return None
+
+        except Exception as e:
+            logger.exception(f"Error detecting proposal manipulation: {e}")
+            return None
+
+    # ========================================================================
+    # SMART CONTRACT VULNERABILITIES
+    # ========================================================================
+
+    async def detect_reentrancy_risk(self, token_info: TokenInfo) -> Optional[Tuple[str, float, Dict]]:
+        """Detect reentrancy vulnerability in smart contracts."""
+        try:
+            # Analyze contract for reentrancy patterns
+            # program_data = await self._fetch_program_data(token_info.mint_address)
+            # if program_data:
+            #     has_reentrancy = await self._analyze_reentrancy_patterns(program_data)
+            #     if has_reentrancy:
+            #         return (
+            #             "critical",
+            #             0.85,
+            #             {
+            #                 "reason": "Reentrancy vulnerability detected",
+            #                 "risk": "Contract can be exploited for fund drainage"
+            #             }
+            #         )
+
+            return None
+
+        except Exception as e:
+            logger.exception(f"Error detecting reentrancy: {e}")
+            return None
+
+    async def detect_integer_overflow_risk(self, token_info: TokenInfo) -> Optional[Tuple[str, float, Dict]]:
+        """Detect integer overflow vulnerabilities."""
+        try:
+            # Check for unsafe arithmetic operations
+            # program_data = await self._fetch_program_data(token_info.mint_address)
+            # if program_data:
+            #     has_overflow_risk = await self._analyze_arithmetic_safety(program_data)
+            #     if has_overflow_risk:
+            #         return (
+            #             "high",
+            #             0.75,
+            #             {
+            #                 "reason": "Integer overflow risk detected",
+            #                 "risk": "Arithmetic operations may overflow"
+            #             }
+            #         )
+
+            return None
+
+        except Exception as e:
+            logger.exception(f"Error detecting overflow risk: {e}")
+            return None
+
+    async def detect_access_control_issues(self, token_info: TokenInfo) -> Optional[Tuple[str, float, Dict]]:
+        """Detect access control vulnerabilities."""
+        try:
+            # Check for missing or weak access controls
+            # program_data = await self._fetch_program_data(token_info.mint_address)
+            # if program_data:
+            #     access_issues = await self._analyze_access_controls(program_data)
+            #     if access_issues:
+            #         return (
+            #             "critical",
+            #             0.90,
+            #             {
+            #                 "issues": access_issues,
+            #                 "reason": "Access control vulnerabilities detected",
+            #                 "risk": "Unauthorized users may access privileged functions"
+            #             }
+            #         )
+
+            return None
+
+        except Exception as e:
+            logger.exception(f"Error detecting access control issues: {e}")
+            return None
+
+    # ========================================================================
+    # SOCIAL ENGINEERING THREATS
+    # ========================================================================
+
+    async def detect_phishing_risk(self, token_info: TokenInfo) -> Optional[Tuple[str, float, Dict]]:
+        """Detect phishing attempts through token metadata."""
+        try:
+            # Check for phishing indicators in metadata
+            # metadata = await self._fetch_token_metadata(token_info.mint_address)
+            # if metadata:
+            #     phishing_indicators = []
+            #
+            #     # Check for suspicious URLs
+            #     if "website" in metadata:
+            #         if self._is_suspicious_url(metadata["website"]):
+            #             phishing_indicators.append("Suspicious website URL")
+            #
+            #     # Check for urgent/scam language
+            #     description = metadata.get("description", "")
+            #     scam_keywords = ["urgent", "airdrop", "claim now", "limited time"]
+            #     if any(kw in description.lower() for kw in scam_keywords):
+            #         phishing_indicators.append("Scam language detected")
+            #
+            #     if phishing_indicators:
+            #         return (
+            #             "high",
+            #             0.80,
+            #             {
+            #                 "indicators": phishing_indicators,
+            #                 "reason": "Phishing attempt detected",
+            #                 "risk": "Token may be phishing scam"
+            #             }
+            #         )
+
+            return None
+
+        except Exception as e:
+            logger.exception(f"Error detecting phishing: {e}")
+            return None
+
+    async def detect_wallet_drainer_risk(self, token_info: TokenInfo) -> Optional[Tuple[str, float, Dict]]:
+        """Detect wallet drainer smart contracts."""
+        try:
+            # Check for wallet drainer patterns
+            # program_data = await self._fetch_program_data(token_info.mint_address)
+            # if program_data:
+            #     is_drainer = await self._analyze_drainer_patterns(program_data)
+            #     if is_drainer:
+            #         return (
+            #             "critical",
+            #             0.95,
+            #             {
+            #                 "reason": "WALLET DRAINER DETECTED",
+            #                 "risk": "DO NOT INTERACT - Will drain your wallet",
+            #                 "action": "Block immediately"
+            #             }
+            #         )
+
+            return None
+
+        except Exception as e:
+            logger.exception(f"Error detecting wallet drainer: {e}")
+            return None
+
+    # ========================================================================
     # HELPER METHODS (Placeholders - would have real implementation)
     # ========================================================================
 
