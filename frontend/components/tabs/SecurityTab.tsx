@@ -1,14 +1,22 @@
 "use client";
 
+import { useState } from "react";
 import Tooltip from "@/components/ui/Tooltip";
 import { Button } from "@/components/ui/Button";
+import MultiHeadedThreatIndex from "@/components/security/MultiHeadedThreatIndex";
 
 export default function SecurityTab() {
+  const [mhtiEnabled, setMhtiEnabled] = useState(true);
+
   return (
     <div className="space-y-6">
+      {/* Multi-Headed Threat Index */}
+      {mhtiEnabled && <MultiHeadedThreatIndex />}
+
+      {/* Classic Threat Detection */}
       <div className="bg-bg-tertiary border border-border p-6 rounded-lg">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold uppercase tracking-wide">Security Scan</h2>
+          <h2 className="text-xl font-bold uppercase tracking-wide">Classic Threat Detection</h2>
           <Button variant="primary">Run Scan</Button>
         </div>
         <div className="grid grid-cols-3 gap-4">
@@ -45,6 +53,22 @@ export default function SecurityTab() {
       <div className="bg-bg-tertiary border border-border p-6 rounded-lg">
         <h3 className="text-lg font-bold uppercase tracking-wide mb-4">Security Settings</h3>
         <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-sm uppercase text-text-muted block mb-2">
+              Enable Multi-Headed Threat Index
+            </label>
+            <select
+              value={mhtiEnabled ? "enabled" : "disabled"}
+              onChange={(e) => setMhtiEnabled(e.target.value === "enabled")}
+              className="w-full bg-bg-secondary border border-border rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:border-accent-primary"
+            >
+              <option value="enabled">Enabled</option>
+              <option value="disabled">Disabled</option>
+            </select>
+            <p className="text-xs text-text-muted mt-1">
+              Show unified risk score alongside classic threat detection
+            </p>
+          </div>
           <div>
             <label className="text-sm uppercase text-text-muted block mb-2">
               Auto-Sell Dangerous Tokens

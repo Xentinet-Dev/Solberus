@@ -195,6 +195,13 @@ if FASTAPI_AVAILABLE:
     active_market_makers: Dict[str, Any] = {}  # {mm_id: MarketMaker}
     active_arbitrage: Dict[str, Any] = {}  # {arb_id: ArbitrageEngine}
 
+    # Initialize MHTI enhancements
+    from ai.risk_trend_engine import RiskTrendEngine
+    from ai.risk_verification_registry import RiskVerificationRegistry
+
+    risk_trend_engine = RiskTrendEngine(history_size=10, alert_threshold=0.15)
+    risk_verification_registry = RiskVerificationRegistry()
+
 
     # Request/Response Models
     class BotConfig(BaseModel):
@@ -1394,7 +1401,17 @@ if FASTAPI_AVAILABLE:
             else:
                 risk_level = "low"
 
-            return {
+            # Calculate Multi-Headed Threat Index (MHTI) for unified risk score
+            mhti_result = None
+            try:
+                from ai.multi_headed_threat_index import MultiHeadedThreatIndex
+                mhti = MultiHeadedThreatIndex(risk_tolerance="medium", client=client)
+                mhti_result = await mhti.classify(token_info)
+            except Exception as mhti_error:
+                logger.warning(f"MHTI calculation failed (non-fatal): {mhti_error}")
+                # Continue without MHTI - it's supplementary
+
+            response = {
                 "token_address": request.token_address,
                 "health_score": health_score,
                 "risk_level": risk_level,
@@ -1408,9 +1425,198 @@ if FASTAPI_AVAILABLE:
                 },
                 "scan_time": time.time()
             }
+
+            # Add MHTI if available
+            if mhti_result:
+                response["mhti"] = mhti_result
+
+            return response
         except Exception as e:
             logger.exception(f"Security scan error: {e}")
             raise HTTPException(status_code=500, detail=f"Security scan failed: {str(e)}")
+
+    @app.post("/api/security/multi-threat-index")
+    async def multi_threat_index(request: SecurityScanRequest):
+        """
+        Calculate Multi-Headed Threat Index (MHTI) for a token.
+
+        Returns unified risk score (0-1) aggregating 30+ threat detectors,
+        technical checks, and market health metrics.
+        """
+        try:
+            from ai.multi_headed_threat_index import MultiHeadedThreatIndex
+            from solders.pubkey import Pubkey
+            from interfaces.core import TokenInfo, Platform
+            import os
+
+            # Initialize client
+            rpc_endpoint = os.getenv("SOLANA_NODE_RPC_ENDPOINT")
+            if not rpc_endpoint:
+                raise HTTPException(
+                    status_code=500,
+                    detail="RPC endpoint not configured"
+                )
+
+            client = SolanaClient(rpc_endpoint=rpc_endpoint)
+
+            # Create token info
+            token_mint = Pubkey.from_string(request.token_address)
+            token_info = TokenInfo(
+                name="",
+                symbol="",
+                uri="",
+                mint=token_mint,
+                platform=Platform.PUMP_FUN,
+            )
+
+            # Calculate MHTI
+            mhti = MultiHeadedThreatIndex(risk_tolerance="medium", client=client)
+            result = await mhti.classify(token_info)
+
+            # Track in trend engine
+            mint_str = str(token_mint)
+            risk_trend_engine.update(mint_str, result["score"])
+            trend_analysis = risk_trend_engine.analyze(mint_str)
+
+            # Record in verification registry
+            risk_verification_registry.record_scan(mint_str, result["score"])
+
+            return {
+                "token_address": request.token_address,
+                "mhti": result,
+                "trend": trend_analysis,
+                "timestamp": time.time()
+            }
+
+        except Exception as e:
+            logger.exception(f"MHTI calculation error: {e}")
+            raise HTTPException(status_code=500, detail=f"MHTI calculation failed: {str(e)}")
+
+    @app.get("/api/security/mhti/accuracy")
+    async def get_mhti_accuracy():
+        """
+        Get MHTI accuracy metrics based on verified outcomes.
+
+        Returns precision, recall, F1 score, and confusion matrix.
+        """
+        try:
+            # Get accuracy for different thresholds
+            metrics_medium = risk_verification_registry.get_accuracy_metrics(
+                threshold=0.65,
+                min_confidence="medium"
+            )
+
+            metrics_conservative = risk_verification_registry.get_accuracy_metrics(
+                threshold=0.50,
+                min_confidence="medium"
+            )
+
+            metrics_aggressive = risk_verification_registry.get_accuracy_metrics(
+                threshold=0.80,
+                min_confidence="medium"
+            )
+
+            # Get hall of fame/shame
+            hall_of_fame = risk_verification_registry.get_hall_of_fame(limit=5)
+            hall_of_shame = risk_verification_registry.get_hall_of_shame(limit=5)
+
+            # Get summary
+            summary = risk_verification_registry.get_summary()
+
+            return {
+                "summary": summary,
+                "metrics": {
+                    "conservative": metrics_conservative,
+                    "medium": metrics_medium,
+                    "aggressive": metrics_aggressive
+                },
+                "hall_of_fame": hall_of_fame,
+                "hall_of_shame": hall_of_shame,
+                "timestamp": time.time()
+            }
+
+        except Exception as e:
+            logger.exception(f"Accuracy metrics error: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to get accuracy metrics: {str(e)}")
+
+    class OutcomeVerification(BaseModel):
+        """Outcome verification request model."""
+        token_address: str
+        outcome: str  # "rugged", "honeypot", "abandoned", "safe"
+        notes: Optional[str] = None
+
+    @app.post("/api/security/mhti/verify-outcome")
+    async def verify_outcome(request: OutcomeVerification):
+        """
+        Verify the final outcome of a token for accuracy tracking.
+
+        This allows manual verification of whether MHTI predictions were accurate.
+        """
+        try:
+            from ai.risk_verification_registry import TokenOutcome
+
+            # Parse outcome
+            outcome_map = {
+                "rugged": TokenOutcome.RUGGED,
+                "honeypot": TokenOutcome.HONEYPOT,
+                "abandoned": TokenOutcome.ABANDONED,
+                "safe": TokenOutcome.SAFE,
+                "unknown": TokenOutcome.UNKNOWN
+            }
+
+            if request.outcome.lower() not in outcome_map:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid outcome. Must be one of: {list(outcome_map.keys())}"
+                )
+
+            outcome = outcome_map[request.outcome.lower()]
+
+            # Verify outcome
+            success = risk_verification_registry.verify_outcome(
+                request.token_address,
+                outcome,
+                request.notes
+            )
+
+            if not success:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Token {request.token_address} not found in registry"
+                )
+
+            return {
+                "success": True,
+                "token_address": request.token_address,
+                "outcome": request.outcome,
+                "notes": request.notes,
+                "timestamp": time.time()
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception(f"Outcome verification error: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to verify outcome: {str(e)}")
+
+    @app.get("/api/security/mhti/trend-summary")
+    async def get_trend_summary():
+        """
+        Get summary of risk trends across all tracked tokens.
+
+        Returns counts of high-risk, accelerating, and improving tokens.
+        """
+        try:
+            summary = risk_trend_engine.get_summary()
+
+            return {
+                "summary": summary,
+                "timestamp": time.time()
+            }
+
+        except Exception as e:
+            logger.exception(f"Trend summary error: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to get trend summary: {str(e)}")
 
 
     # ==================== Strategy Endpoints ====================

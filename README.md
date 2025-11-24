@@ -63,6 +63,85 @@ The core objective is to give individual traders and small teams tooling that be
 
 - Adaptive risk management with position sizing
 
+#### Multi-Headed Threat Index (MHTI)
+
+The **Multi-Headed Threat Index** is Solberus' unified, quantitative risk engine. Instead of showing 30+ threats independently, MHTI fuses them into a single, interpretable score with explainability and trend tracking.
+
+**Three-Bucket Architecture:**
+
+1. **Risk Signals (40%)** – Real-time aggregation of 30+ on-chain threat detectors including honeypot patterns, authority misuse, liquidity attacks, MEV exposure, and exit-risk signals.
+
+2. **Technical Integrity (30%)** – Token-2022 authority checks, transfer hooks, metadata manipulation, and contract risk flags.
+
+3. **Market Health (30%)** – Liquidity depth, 24h volume profile, holder distribution, and age-based maturity.
+
+**Key Features:**
+
+- **Unified Risk Score:** Single 0-1 composite score (0 = safe, 1 = maximum risk)
+- **Risk Level Classification:** Safe / Monitor / High / Critical
+- **Confidence Intervals:** Uncertainty quantification based on data quality
+- **Top Factors Ranking:** Explainability showing which buckets contribute most
+- **Trend Analysis:** Tracks risk velocity and acceleration over time
+- **Alert System:** Automatic warnings when risk accelerates rapidly
+- **Verification Registry:** Long-term accuracy tracking with precision/recall metrics
+
+**API Endpoints:**
+
+```bash
+# Calculate MHTI for a token
+POST /api/security/multi-threat-index
+{
+  "token_address": "..."
+}
+
+# Get accuracy metrics
+GET /api/security/mhti/accuracy
+
+# Verify outcome for accuracy tracking
+POST /api/security/mhti/verify-outcome
+{
+  "token_address": "...",
+  "outcome": "rugged" | "safe" | "honeypot" | "abandoned",
+  "notes": "..."
+}
+
+# Get trend summary
+GET /api/security/mhti/trend-summary
+```
+
+**Example Output:**
+
+```json
+{
+  "engine": "Multi-Headed Threat Index (MHTI)",
+  "score": 0.35,
+  "risk_level": "monitor",
+  "buckets": {
+    "risk": 0.42,
+    "technical": 0.25,
+    "market": 0.38
+  },
+  "top_factors": [
+    {"factor": "risk", "value": 0.42},
+    {"factor": "market", "value": 0.38},
+    {"factor": "technical", "value": 0.25}
+  ],
+  "confidence_interval": {
+    "lower": 0.31,
+    "upper": 0.39,
+    "uncertainty": "low"
+  },
+  "trend": {
+    "trend": 0.08,
+    "acceleration": 0.02,
+    "direction": "increasing",
+    "alert": "⚠️  WARNING: Risk increasing steadily - monitor closely"
+  }
+}
+```
+
+MHTI is fully cached (60s TTL) and optimized for low-latency, high-frequency scanning. See `/backend/src/ai/` for implementation details.
+
 ### Execution & Liquidity Management
 
 - **Multi-platform support:**
