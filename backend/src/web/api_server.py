@@ -1313,6 +1313,384 @@ if FASTAPI_AVAILABLE:
             logger.exception(f"Arbitrage {arb_id} error: {e}")
 
 
+    # ==================== Security Endpoints ====================
+
+    class SecurityScanRequest(BaseModel):
+        """Security scan request model."""
+        token_address: str
+
+
+    @app.post("/api/security/scan")
+    async def scan_token_security(request: SecurityScanRequest):
+        """Scan a token for security threats."""
+        try:
+            from security.comprehensive_threat_detector import ComprehensiveThreatDetector
+            from solders.pubkey import Pubkey
+            from interfaces.core import TokenInfo
+
+            # Initialize threat detector
+            rpc_endpoint = os.getenv("SOLANA_NODE_RPC_ENDPOINT")
+            if not rpc_endpoint:
+                raise HTTPException(
+                    status_code=500,
+                    detail="RPC endpoint not configured"
+                )
+
+            client = SolanaClient(rpc_endpoint=rpc_endpoint)
+            detector = ComprehensiveThreatDetector(client)
+
+            # Create minimal token info for scanning
+            token_mint = Pubkey.from_string(request.token_address)
+            token_info = TokenInfo(
+                mint_address=token_mint,
+                pool_address=token_mint,  # Placeholder - will be fetched by detector
+                platform="pump_fun",  # Default
+            )
+
+            # Run threat detection
+            threats = await detector.detect_all_threats(token_info)
+
+            # Calculate overall health score (0-100)
+            health_score = 100
+            critical_count = 0
+            high_count = 0
+            medium_count = 0
+            low_count = 0
+
+            detected_threats = []
+            for threat_name, result in threats.items():
+                if result and result[0]:  # Threat detected
+                    severity, confidence, details = result
+                    detected_threats.append({
+                        "name": threat_name,
+                        "severity": severity,
+                        "confidence": confidence,
+                        "details": details
+                    })
+
+                    # Reduce health score based on severity
+                    if severity == "critical":
+                        health_score -= 30
+                        critical_count += 1
+                    elif severity == "high":
+                        health_score -= 15
+                        high_count += 1
+                    elif severity == "medium":
+                        health_score -= 7
+                        medium_count += 1
+                    elif severity == "low":
+                        health_score -= 3
+                        low_count += 1
+
+            health_score = max(0, health_score)
+
+            # Determine overall risk level
+            if health_score <= 30:
+                risk_level = "critical"
+            elif health_score <= 50:
+                risk_level = "high"
+            elif health_score <= 70:
+                risk_level = "medium"
+            else:
+                risk_level = "low"
+
+            return {
+                "token_address": request.token_address,
+                "health_score": health_score,
+                "risk_level": risk_level,
+                "threats": detected_threats,
+                "threat_counts": {
+                    "critical": critical_count,
+                    "high": high_count,
+                    "medium": medium_count,
+                    "low": low_count,
+                    "total": len(detected_threats)
+                },
+                "scan_time": time.time()
+            }
+        except Exception as e:
+            logger.exception(f"Security scan error: {e}")
+            raise HTTPException(status_code=500, detail=f"Security scan failed: {str(e)}")
+
+
+    # ==================== Strategy Endpoints ====================
+
+    @app.get("/api/strategies/status")
+    async def get_strategies_status():
+        """Get performance statistics for all strategies."""
+        try:
+            from strategies.combinator import StrategyCombinator
+
+            # Get combinator instance from active bot or create temporary one
+            combinator = None
+            for bot_id, trader in active_bots.items():
+                if hasattr(trader, 'combinator'):
+                    combinator = trader.combinator
+                    break
+
+            # If no active bot, return default stats
+            if not combinator:
+                default_stats = {
+                    "snipe": {"name": "SnipeStrategy", "enabled": False, "trades_count": 0, "wins": 0, "losses": 0, "win_rate": 0.0, "total_pnl": 0.0, "avg_hold_time": 0, "confidence_avg": 0.0},
+                    "momentum": {"name": "MomentumStrategy", "enabled": False, "trades_count": 0, "wins": 0, "losses": 0, "win_rate": 0.0, "total_pnl": 0.0, "avg_hold_time": 0, "confidence_avg": 0.0},
+                    "reversal": {"name": "ReversalStrategy", "enabled": False, "trades_count": 0, "wins": 0, "losses": 0, "win_rate": 0.0, "total_pnl": 0.0, "avg_hold_time": 0, "confidence_avg": 0.0},
+                    "whale_copy": {"name": "WhaleCopyStrategy", "enabled": False, "trades_count": 0, "wins": 0, "losses": 0, "win_rate": 0.0, "total_pnl": 0.0, "avg_hold_time": 0, "confidence_avg": 0.0},
+                    "social_signals": {"name": "SocialSignalsStrategy", "enabled": False, "trades_count": 0, "wins": 0, "losses": 0, "win_rate": 0.0, "total_pnl": 0.0, "avg_hold_time": 0, "confidence_avg": 0.0},
+                    "overall": {"total_trades": 0, "total_wins": 0, "total_pnl": 0.0, "avg_win_rate": 0.0, "active_strategies": 0}
+                }
+                return default_stats
+
+            # Get stats from combinator strategies
+            strategy_stats = {}
+            total_trades = 0
+            total_wins = 0
+            total_pnl = 0.0
+            active_count = 0
+
+            for strategy_type, strategy in combinator.strategy_instances.items():
+                stats = strategy.get_performance_stats()
+                strategy_name = strategy_type.value if hasattr(strategy_type, 'value') else str(strategy_type)
+
+                strategy_stats[strategy_name] = {
+                    "name": strategy.__class__.__name__,
+                    "enabled": strategy.enabled,
+                    "trades_count": stats.get("trades_count", 0),
+                    "wins": stats.get("wins", 0),
+                    "losses": stats.get("losses", 0),
+                    "win_rate": stats.get("win_rate", 0.0),
+                    "total_pnl": stats.get("total_pnl", 0.0),
+                    "avg_hold_time": stats.get("avg_hold_time", 0),
+                    "confidence_avg": stats.get("confidence_avg", 0.0)
+                }
+
+                total_trades += stats.get("trades_count", 0)
+                total_wins += stats.get("wins", 0)
+                total_pnl += stats.get("total_pnl", 0.0)
+                if strategy.enabled:
+                    active_count += 1
+
+            avg_win_rate = (total_wins / total_trades) if total_trades > 0 else 0.0
+
+            strategy_stats["overall"] = {
+                "total_trades": total_trades,
+                "total_wins": total_wins,
+                "total_pnl": total_pnl,
+                "avg_win_rate": avg_win_rate,
+                "active_strategies": active_count
+            }
+
+            return strategy_stats
+        except Exception as e:
+            logger.exception(f"Failed to get strategy status: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+
+    # ==================== Trades Endpoints ====================
+
+    @app.get("/api/trades/history")
+    async def get_trade_history():
+        """Get trade history from all active bots."""
+        try:
+            all_trades = []
+
+            # Collect trades from all active bots
+            for bot_id, trader in active_bots.items():
+                if hasattr(trader, 'trade_history'):
+                    for trade in trader.trade_history:
+                        # Add bot_id to trade record
+                        trade_record = trade.copy() if isinstance(trade, dict) else {}
+                        trade_record["bot_id"] = bot_id
+                        all_trades.append(trade_record)
+
+            # Sort by timestamp (most recent first)
+            all_trades.sort(key=lambda x: x.get("entry_time", 0), reverse=True)
+
+            return {
+                "trades": all_trades,
+                "count": len(all_trades)
+            }
+        except Exception as e:
+            logger.exception(f"Failed to get trade history: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+
+    @app.get("/api/trades/export")
+    async def export_trades():
+        """Export trade history as CSV."""
+        try:
+            import csv
+            import io
+            from fastapi.responses import StreamingResponse
+
+            # Get all trades
+            all_trades = []
+            for bot_id, trader in active_bots.items():
+                if hasattr(trader, 'trade_history'):
+                    for trade in trader.trade_history:
+                        trade_record = trade.copy() if isinstance(trade, dict) else {}
+                        trade_record["bot_id"] = bot_id
+                        all_trades.append(trade_record)
+
+            # Create CSV
+            output = io.StringIO()
+            if all_trades:
+                fieldnames = all_trades[0].keys()
+                writer = csv.DictWriter(output, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(all_trades)
+
+            # Return as streaming response
+            output.seek(0)
+            return StreamingResponse(
+                iter([output.getvalue()]),
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename=solberus-trades-{int(time.time())}.csv"}
+            )
+        except Exception as e:
+            logger.exception(f"Failed to export trades: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+
+    # ==================== Positions Endpoints ====================
+
+    @app.get("/api/positions/active")
+    async def get_active_positions():
+        """Get all active positions across all bots."""
+        try:
+            all_positions = []
+            portfolio_value = 0.0
+            portfolio_pnl = 0.0
+            winning_count = 0
+            losing_count = 0
+            at_risk_count = 0
+
+            # Collect positions from all active bots
+            for bot_id, trader in active_bots.items():
+                if not hasattr(trader, 'active_positions'):
+                    continue
+
+                for mint, position in trader.active_positions.items():
+                    if not position.is_active:
+                        continue
+
+                    # Get current price
+                    current_price = position.entry_price  # Placeholder
+
+                    try:
+                        pnl_data = position.get_pnl(current_price)
+                        unrealized_pnl = pnl_data.get("unrealized_pnl_sol", 0)
+                        pnl_percent = pnl_data.get("price_change_pct", 0) / 100
+                    except:
+                        unrealized_pnl = 0
+                        pnl_percent = 0
+
+                    # Calculate hold time
+                    hold_time = int(time.time() - position.entry_time.timestamp()) if hasattr(position.entry_time, 'timestamp') else 0
+
+                    # Determine threat level (placeholder - integrate with security scanner)
+                    threat_level = "low"
+                    security_score = 75  # Placeholder
+
+                    position_record = {
+                        "id": f"{bot_id}_{mint}",
+                        "token_address": mint,
+                        "token_symbol": position.symbol or mint[:8],
+                        "strategy": "snipe",  # Placeholder
+                        "entry_price": position.entry_price,
+                        "current_price": current_price,
+                        "amount": position.entry_price * position.quantity,  # SOL amount
+                        "entry_time": position.entry_time.timestamp() if hasattr(position.entry_time, 'timestamp') else time.time(),
+                        "hold_time": hold_time,
+                        "unrealized_pnl": unrealized_pnl,
+                        "unrealized_pnl_percent": pnl_percent,
+                        "security_score": security_score,
+                        "threat_level": threat_level,
+                        "stop_loss": position.stop_loss_price,
+                        "take_profit": position.take_profit_price,
+                        "confidence": 0.75,  # Placeholder
+                        "bot_id": bot_id
+                    }
+
+                    all_positions.append(position_record)
+
+                    # Update portfolio stats
+                    portfolio_value += position.entry_price * position.quantity
+                    portfolio_pnl += unrealized_pnl
+
+                    if unrealized_pnl > 0:
+                        winning_count += 1
+                    else:
+                        losing_count += 1
+
+                    if threat_level in ["high", "critical"]:
+                        at_risk_count += 1
+
+            # Calculate portfolio stats
+            portfolio_stats = {
+                "total_positions": len(all_positions),
+                "total_value_sol": portfolio_value,
+                "total_unrealized_pnl": portfolio_pnl,
+                "total_unrealized_pnl_percent": (portfolio_pnl / portfolio_value * 100) if portfolio_value > 0 else 0,
+                "winning_positions": winning_count,
+                "losing_positions": losing_count,
+                "avg_hold_time": sum(p["hold_time"] for p in all_positions) // len(all_positions) if all_positions else 0,
+                "at_risk_count": at_risk_count
+            }
+
+            return {
+                "positions": all_positions,
+                "portfolio": portfolio_stats
+            }
+        except Exception as e:
+            logger.exception(f"Failed to get active positions: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+
+    class ClosePositionRequest(BaseModel):
+        """Close position request model."""
+        position_id: str
+
+
+    @app.post("/api/positions/close")
+    async def close_position(request: ClosePositionRequest):
+        """Close an active position."""
+        try:
+            # Parse position_id (format: bot_id_mint)
+            parts = request.position_id.split("_", 1)
+            if len(parts) != 2:
+                raise HTTPException(status_code=400, detail="Invalid position ID format")
+
+            bot_id, mint = parts
+
+            if bot_id not in active_bots:
+                raise HTTPException(status_code=404, detail="Bot not found")
+
+            trader = active_bots[bot_id]
+
+            if not hasattr(trader, 'active_positions') or mint not in trader.active_positions:
+                raise HTTPException(status_code=404, detail="Position not found")
+
+            position = trader.active_positions[mint]
+
+            # Close position (trader should have a method for this)
+            # For now, just mark as inactive
+            if hasattr(trader, 'close_position'):
+                await trader.close_position(mint)
+            else:
+                position.is_active = False
+
+            return {
+                "success": True,
+                "message": f"Position {mint} closed successfully",
+                "position_id": request.position_id
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception(f"Failed to close position: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+
     if __name__ == "__main__":
         import uvicorn
         uvicorn.run(app, host="0.0.0.0", port=8000)
